@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:cloudhub="http://www.mulesoft.org/schema/mule/cloudhub" xmlns:sqs="http://www.mulesoft.org/schema/mule/sqs"
+	xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/sqs http://www.mulesoft.org/schema/mule/sqs/current/mule-sqs.xsd
+http://www.mulesoft.org/schema/mule/cloudhub http://www.mulesoft.org/schema/mule/cloudhub/current/mule-cloudhub.xsd">
+	<flow name="RequestFlow" doc:id="574c13e3-4e33-43e6-9492-8e320e2b7dbe" >
+		<logger level="INFO" doc:name="Logger" doc:id="34a26468-fec8-4637-a0a3-c2700fd3f59a" message="+++ Entered Request flow +++"/>
+		<set-variable value="#[payload]" doc:name="cdPayload" doc:id="36e7f425-b82a-4651-bdb5-aa66ab39a2bf" variableName="cdPayload"/>
+		<http:request method="PUT" doc:name="Request" doc:id="ee271c78-8456-4960-8a46-f42ad3d14a61" config-ref="HTTP_Request_configuration" path="/${secure::request.path}">
+			<reconnect frequency="12000" count="5" />
+			<http:headers><![CDATA[#[output application/java
+---
+{
+	"sourceSys" : Mule::p('sourceSystem'),
+	"systemIdentifier" : Mule::p('systemIdentifier'),
+	"BuisnessObject" : vars.buisObj,
+	"messageIdentifier" : vars.messageIdentifier,
+	"request_id" : vars.request_id,
+	"client_id" : Mule::p('secure::client_id')
+}]]]></http:headers>
+		</http:request>
+		<set-variable value="#[payload]" doc:name="Set Variable" doc:id="c2519672-137e-4220-9ede-fe2f6614dba9" variableName="cdResponse"/>
+		<logger level="INFO" doc:name="Logger" doc:id="52ca559a-1231-4b29-bc75-ad79e06b8313" message="+++ Request flow ended successfully +++"/>
+		<error-handler ref="common-error-handler" />
+		
+	
+	</flow>
+</mule>

@@ -1,0 +1,231 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:sqs="http://www.mulesoft.org/schema/mule/sqs" xmlns:cloudhub="http://www.mulesoft.org/schema/mule/cloudhub"
+	xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/cloudhub http://www.mulesoft.org/schema/mule/cloudhub/current/mule-cloudhub.xsd
+http://www.mulesoft.org/schema/mule/sqs http://www.mulesoft.org/schema/mule/sqs/current/mule-sqs.xsd">
+	
+	<error-handler name = "common-error-handler" doc:id="a2c6b4a8-b1d5-4cae-8d78-011e9c473af0">
+			<on-error-continue enableNotifications="true" logException="true" doc:name="On Error Continue" doc:id="5770c060-ae6d-4cdb-83e7-af463613e66b" when='#[error.muleMessage.typedValue.status_code  == "422"]'>
+				<logger level="INFO" doc:name="Logger" doc:id="fc4ce8d5-f965-4ead-808f-1dcc263966c1" message="+++Error Propogate CD Error Segment+++ #[error.muleMessage.typedValue]" />
+			<ee:transform doc:name="Message" doc:id="3cbbebfc-6cf4-4d06-86fc-c44e2041ba4d" >
+					<ee:message />
+					<ee:variables >
+						<ee:set-variable variableName="status" ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"statusCode" : "40",
+	"statusText" : if(error.muleMessage.typedValue.status_message contains("Check Error Text below")) "ERROR: Failed in CD due to master data validation. Contact CD team."
+				   else error.muleMessage.typedValue.status_message
+	}]]></ee:set-variable>
+						<ee:set-variable variableName="httpStatus" ><![CDATA[422]]></ee:set-variable>
+						<ee:set-variable variableName="errorDesc" ><![CDATA[error.muleMessage.typedValue.status_message]]></ee:set-variable>
+						<ee:set-variable variableName="errorStatus" ><![CDATA[error.muleMessage.typedValue.status_code]]></ee:set-variable>
+						<ee:set-variable variableName="errorText" ><![CDATA[error.muleMessage.typedValue.error_text]]></ee:set-variable>
+					
+</ee:variables>
+				</ee:transform>
+			<set-payload value='#[%dw 2.0&#10;&#10;output application/java&#10;&#10;---&#10;"Business Validation error" ++ (vars.status.statusText default "") ++ " for " ++  " ID - "  ++ " received through E1 System  " ++ (vars.request_id default "")]' doc:name="Set Payload" doc:id="9a670249-bc00-4181-9eb1-d3e8d83ea34a" />
+			<ee:transform doc:name="Transform Message" doc:id="b84a1f3f-516e-4895-8d7e-e3fa7247ddfd" >
+				<ee:message >
+					<ee:set-payload ><![CDATA[error.muleMessage.typedValue]]></ee:set-payload>
+				</ee:message>
+			</ee:transform>
+			<cloudhub:create-notification domain="${secure::cloudhub.domain}" doc:name="Create Notification" doc:id="b3124791-eec8-4963-bb24-f0ec39b9f127" config-ref="CloudHub_Config" priority="ERROR" />
+<!-- 				<cloudhub:create-notification domain="${secure::cloudhub.domain}" doc:name="Create Notification" doc:id="2448260d-e5bc-41cc-855f-97dd75e99cc6" config-ref="CloudHub_Config" priority="ERROR" /> -->
+
+			
+</on-error-continue>
+			<on-error-continue enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="67721330-e5a2-4f64-a390-573d71ac23b1" type="EXPRESSION">
+				<logger level="INFO" doc:name="Logger" doc:id="e0d09ed5-a403-42f8-8121-5cbc7bf250a3" message="+++Error Propogate Expression Segment+++ #[error.description]" />
+			<ee:transform doc:name="metadata" doc:id="82809dc6-38be-4c15-b4d1-4497da3e1057">
+				<ee:message>
+					<ee:set-payload><![CDATA[%dw 2.0
+output application/java
+---
+{
+	delaySeconds: 0,
+	body: write(payload, "application/json"),
+	messageAttributes: {
+		"AccountId": {
+			"stringValue" : "000123456",
+			"dataType" : "String.AccountId"
+		} as Object {
+			class: "org.mule.extension.sqs.api.model.MessageAttributeValue"
+		},
+		"NumberId": {
+			"stringValue" : "230.000000000000000001",
+			"dataType" : "Number"
+		} as Object {
+			class : "org.mule.extension.sqs.api.model.MessageAttributeValue"
+		}
+	} as Object {
+		class: "java.util.HashMap"
+	}
+} as Object {
+	class: "org.mule.extension.sqs.api.model.Message"
+}]]></ee:set-payload>
+				</ee:message>
+				<ee:variables>
+					<ee:set-variable variableName="status"><![CDATA[%dw 2.0
+import * from dw::core::Strings
+output application/json
+---
+{
+	"statusCode" : "40",
+	"statusText" : if(substring(error.description,44,60)== "ERROR: Mandatory")(substring(error.description, 44,115 ))
+				   else ("ERROR: MasterData transformation failed in Mule due to unexpected char.")
+}]]></ee:set-variable>
+					<ee:set-variable variableName="errorDesc"><![CDATA[error.muleMessage.typedValue.status_message]]></ee:set-variable>
+					<ee:set-variable variableName="errorStatus"><![CDATA[500]]></ee:set-variable>
+					<ee:set-variable variableName="errorText"><![CDATA[ if(sizeOf(error.description) >100) error.description[0  to 100] else error.description]]></ee:set-variable>
+				</ee:variables>
+			</ee:transform>
+			<logger level="INFO" doc:name="Logger" doc:id="d5564c39-8cdf-4c85-bde0-8940a8748fda" message="+++ Metadata -  #[payload] +++" />
+			<set-payload value='#[%dw 2.0&#10;&#10;output application/java&#10;&#10;---&#10;"Business Validation error" ++ (vars.status.statusText default "") ++ " for " ++  " ID - "  ++ " received through E1 System  " ++ (vars.request_id default "")]' doc:name="Set Payload" doc:id="0d3d3c94-15d4-49ad-8765-c7dcb6ad6d34" />
+			<logger level="INFO" doc:name="Logger" doc:id="8b5132a9-2ae7-49da-8923-7750b3446eb1" message="+++ Sending Error Information via text +++"/>
+				<logger level="INFO" doc:name="Logger" doc:id="597db1bc-bad7-4c5a-8e20-4da56f77d77b" message="+++ #[payload] +++"/>
+				<cloudhub:create-notification doc:name="Create Notification" doc:id="fda49f10-c442-4ce1-8479-eaa95c3d8d48" config-ref="CloudHub_Config" domain="api-3-sapind-masterdata-to-cd"/>
+			
+			
+</on-error-continue>
+			<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="9b724ca7-7214-498e-86f7-a7c1e75980bf" type="ANY">
+			<logger level="INFO" doc:name="Logger" doc:id="899c88ea-e7f0-41c8-bf36-1a1e6e0a6dec" message="+++Error Propogate Any Segment+++ #[error.description]" />
+			<set-variable value='#[if(error.description contains("cannot be empty"))(substring(error.description, 44,115 ))&#10;                   else ("ERROR: MasterData transformation failed in Mule due to unexpected char.")]' doc:name="errorDesc" doc:id="cf973274-9695-4617-bfbc-d1e1b9a5320c" variableName="errorDesc" />
+			<ee:transform doc:name="Message" doc:id="7bce4269-a780-474e-8850-8be2023e10a2" >
+				<ee:message />
+				<ee:variables >
+					<ee:set-variable variableName="status" ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"statusCode" : "40",
+	"statusText" : "ERROR:Failed in Mule/CD due to unexpected error.Contact Mulesoft team."
+	
+	}]]></ee:set-variable>
+					<ee:set-variable variableName="errorDesc" ><![CDATA[error.muleMessage.typedValue.status_message]]></ee:set-variable>
+					<ee:set-variable variableName="errorStatus" ><![CDATA[500]]></ee:set-variable>
+					<ee:set-variable variableName="errorText" ><![CDATA[ if(sizeOf(error.description) >100) error.description[0  to 100] else error.description]]></ee:set-variable>
+				</ee:variables>
+			</ee:transform>
+			<ee:transform doc:name="metadata" doc:id="595898a5-9b68-4527-af4b-9bfa7e58a02a" >
+				<ee:message >
+					<ee:set-payload ><![CDATA[%dw 2.0
+output application/java
+---
+{
+	delaySeconds: 0,
+	body: write(payload, "application/json"),
+	messageAttributes: {
+		"AccountId": {
+			"stringValue" : "000123456",
+			"dataType" : "String.AccountId"
+		} as Object {
+			class: "org.mule.extension.sqs.api.model.MessageAttributeValue"
+		},
+		"NumberId": {
+			"stringValue" : "230.000000000000000001",
+			"dataType" : "Number"
+		} as Object {
+			class : "org.mule.extension.sqs.api.model.MessageAttributeValue"
+		}
+	} as Object {
+		class: "java.util.HashMap"
+	}
+} as Object {
+	class: "org.mule.extension.sqs.api.model.Message"
+}]]></ee:set-payload>
+				</ee:message>
+				<ee:variables >
+					<ee:set-variable variableName="status" ><![CDATA[%dw 2.0
+import * from dw::core::Strings
+output application/json
+---
+{
+	"statusCode" : "40",
+	"statusText" : if(substring(error.description,44,60)== "ERROR: Mandatory")(substring(error.description, 44,115 ))
+				   else ("ERROR: MasterData transformation failed in Mule due to unexpected char.")
+}]]></ee:set-variable>
+					<ee:set-variable variableName="errorDesc" ><![CDATA[error.muleMessage.typedValue.status_message]]></ee:set-variable>
+					<ee:set-variable variableName="errorStatus" ><![CDATA[500]]></ee:set-variable>
+					<ee:set-variable variableName="errorText" ><![CDATA[ if(sizeOf(error.description) >100) error.description[0  to 100] else error.description]]></ee:set-variable>
+				</ee:variables>
+			</ee:transform>
+			<logger level="INFO" doc:name="Logger" doc:id="a936b58a-56ce-40ad-971f-64a7d7cf3988" message="+++ Metadata -  #[payload] +++" />
+			<set-payload value='#["Mule API Technical Error" ++ (vars.status.statusText default "") ++ " for " ++  " ID - " ++ " received through E1 System  " ++ (vars.request_id default "")]' doc:name="Set Payload" doc:id="9c192709-2109-4f86-8b11-90211b205ca4" />
+			<logger level="INFO" doc:name="Logger" doc:id="1449ab78-349a-416d-b009-aa40e7ddd89a" message="+++ Sending Error Information via text +++" />
+			<logger level="INFO" doc:name="Logger" doc:id="bef76c27-587c-4634-89e1-e3e21b325372" message="+++ #[payload] +++" />
+			<cloudhub:create-notification domain="${secure::cloudhub.domain}" doc:name="Create Notification" doc:id="9bcc9a67-0ed5-4adb-9886-69d6616014fe" config-ref="CloudHub_Config" />
+			
+</on-error-propagate>
+			
+			
+			<on-error-continue enableNotifications="true" logException="true" doc:name="On Error Continue" doc:id="94bcea8b-241e-4951-bbf9-50e9c9087c03" when="#[error.description contains(&quot;HTTP PUT on resource '${secure::api5.host}' failed with status code 504&quot;)]">
+				<logger level="INFO" doc:name="Logger" doc:id="46d5f592-841f-422f-b107-85168b2f06d4" message="++++Inside Error and Continue Segment in Error Handling +++ #[error.description]" />
+				<try doc:name="Try" doc:id="b7f25d3a-5166-433b-addc-6f31cb0b8744" >
+					<ee:transform doc:name="Transform Message" doc:id="c1fe7012-6435-41a5-9498-108d5bf78c0d" >
+						<ee:message >
+							<ee:set-payload ><![CDATA[%dw 2.0
+output application/json skipNullOn = "everywhere"
+---
+vars.cdPayload ++ {"client_id": Mule::p('secure::client_id')} ++ {"sourceSys": p('sourceSystem')} ++ {"buisObj": vars.buisObj} ++ {"msgIdentifier": vars.messageIdentifier} ++ {"systemIdentifier": p('systemIdentifier')} ++ {"request_id": vars.request_id}]]></ee:set-payload>
+						</ee:message>
+					</ee:transform>
+					<logger level="INFO" doc:name="Logger" doc:id="6f7ff0d0-2b62-437e-9b7c-18d2c0c3496e" message="+++ Error Payload with Headers for further processing ------------------- #[payload]" />
+					<ee:transform doc:name="Message" doc:id="1dee269d-c1bb-4412-a265-f128b9bcff68">
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/java
+---
+{
+	delaySeconds: 0,
+	body: write(payload, "application/json"),
+	messageAttributes: {
+		"AccountId": {
+			"stringValue" : "000123456",
+			"dataType" : "String.AccountId"
+		} as Object {
+			class: "org.mule.extension.sqs.api.model.MessageAttributeValue"
+		},
+		"NumberId": {
+			"stringValue" : "230.000000000000000001",
+			"dataType" : "Number"
+		} as Object {
+			class : "org.mule.extension.sqs.api.model.MessageAttributeValue"
+		}
+	} as Object {
+		class: "java.util.HashMap"
+	}
+} as Object {
+	class: "org.mule.extension.sqs.api.model.Message"
+}]]></ee:set-payload>
+					</ee:message>
+					<ee:variables>
+						<ee:set-variable variableName="status"><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"statusCode" : "40",
+	"statusText" : if(error.muleMessage.typedValue.status_message contains("Check Error Text below")) "ERROR: Failed in CD due to master data validation. Contact CD team."
+				   else error.muleMessage.typedValue.status_message
+	}]]></ee:set-variable>
+						<ee:set-variable variableName="errorDesc"><![CDATA[error.muleMessage.typedValue.status_message]]></ee:set-variable>
+						<ee:set-variable variableName="errorStatus"><![CDATA[error.muleMessage.typedValue.status_code]]></ee:set-variable>
+						<ee:set-variable variableName="errorText"><![CDATA[error.muleMessage.typedValue.error_text]]></ee:set-variable>
+					</ee:variables>
+				</ee:transform>
+				<logger level="INFO" doc:name="Logger" doc:id="2f59467b-cf7f-4cb9-997a-218c8f136fe6" message="+++Header Details ::: Source System - #[vars.sourceSys] ,  Buisness Object - #[vars.buisObj] , Message Identifier - #[vars.msgIdentifier] +++" />
+					<until-successful maxRetries="5" doc:name="Until Successful" doc:id="c384494c-8bc0-404a-b0fa-bb17b2e715e7" millisBetweenRetries="30000" >
+						<sqs:send-message doc:name="Send message" doc:id="82e6fe1b-d39e-4d40-818a-f80d0a25b49a" config-ref="Amazon_SQS_Configuration" queueUrl="${secure::SQSQueueURL}" />
+					
+</until-successful>
+					<logger level="INFO" doc:name="Logger" doc:id="b8e16015-2613-4fb6-a013-529666569f4b" message="+++Error Message written into SQS successfully +++" />
+				
+</try>
+			</on-error-continue>
+		
+</error-handler>
+</mule>

@@ -1,0 +1,183 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+	<flow name="Batcherrorreport" doc:id="d66c3d3a-d428-4daa-a6ee-0bb628988526" >
+		<logger level="INFO" doc:name="Logger" doc:id="3fbca063-516c-43a5-8437-fabe002e68e3" message="+++Entering into Batch Error report+++" />
+		<logger level="INFO" doc:name="Logger" doc:id="6ca8c2f2-051f-4f47-ba24-7b457e0e8e67" message="+++ Payload received from E1 after decoding +++"/>
+		<logger level="INFO" doc:name="Logger" doc:id="a784a112-0a6f-439c-9df2-d94cb2ee7107" message="+++ Batch Error report received from E1 for processing to API-5 +++" />
+		<logger level="INFO" doc:name="Logger" doc:id="83034333-9e23-44e4-82a3-c9e17ab3cebd" message="+++ Sending to CD by processing into api-5 ++++"/>
+		<ee:transform doc:name="Batch Error Status Data fields sending to CD JSON Data" doc:id="bdc9f4a3-59a4-45ce-812a-b0102e0bfae7">
+			<ee:message >
+				<ee:set-payload ><![CDATA[payload.StatusResponse.*Status]]></ee:set-payload>
+			</ee:message>
+			<ee:variables>
+				<ee:set-variable variableName="buisObj"><![CDATA["ErrorReport"]]></ee:set-variable>
+				<ee:set-variable variableName="request_id" ><![CDATA[%dw 2.0
+output application/java
+---
+payload.SequenceNumber[0]]]></ee:set-variable>
+			</ee:variables>
+		</ee:transform>
+		<choice doc:name="Choice" doc:id="8cd9431a-3855-4a3e-91ea-274ad790e006" >
+			<when expression="#[((payload.RecordProcessed contains ('E')) and ((payload.MessageResponse contains ('LOC')) or (payload.MessageResponse contains('ADD') ) or (payload.MessageResponse contains('CAS') ) ))]">
+				<logger level="INFO" doc:name="E1 to CD for RecordProcessed 'E' and MessageResponse 'LOC' ,'CAS','ADD' and 'BNF'" doc:id="0e8d53a5-434f-45ab-a3d1-5d759ae59c8e" message="+++Error report received from E1 that contains as a Message Reponse of E1 to CD for RecordProcessed 'E' and MessageResponse  of 'LOC' ,'CAS','ADD' and 'BNF' +++"/>
+				<ee:transform doc:name="Transform Message" doc:id="61e72083-32a3-4686-bf11-5af9e7728c4d">
+					<ee:message>
+						<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+var vErrorsA3= payload filter (($.RecordProcessed == 'E') and ($.StatusType == 'Batch') and ($.MessageResponse == 'LOC' or $.MessageResponse == 'CAS' or $.MessageResponse == 'ADD' ))
+
+---
+{
+    "entity" : 
+    {
+        "type": vErrorsA3[0].StatusType,
+        "id": vErrorsA3[0].CDUIDHeader,
+        "external_id": vErrorsA3[0].CDOrderNumber,
+        "latest_message_identifier": (now() >> "UTC") as Number
+    },
+
+"errors": vErrorsA3 map
+{
+ "code": $.MessageResponse default "" ,
+ "detail": "The Batch process failed due to " ++ $.MessageResponseDesc default '',
+} distinctBy $
+ 
+ }]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+				<logger level="INFO" doc:name="Logger" doc:id="4175e6ce-83e3-42b2-9507-d1d9e5e11bce" message="#[payload]"/>
+			</when>
+			<when expression="#[((payload.MessageResponse contains ('BOM')) or (payload.MessageResponse contains ('CAN')) or (payload.MessageResponse contains('PSH') ) or (payload.MessageResponse contains('MAR') ))]">
+				<logger level="INFO" doc:name="E1 to CD for RecordProcessed 'E' and MessageResponse BOM,'CAN','PSH' and 'MAR'" doc:id="8209efef-ac09-436f-b9a9-3f7996a0a662" message="+++E1 to CD for MessageResponse BOM,'CAN','PSH' and 'MAR'+++"/>
+				<ee:transform doc:name="Transform Message" doc:id="5907d81d-1de0-43a3-913a-6418576ae8f4" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+var vErrorsA3= payload filter (($.RecordProcessed == 'E') and ($.StatusType == 'Batch') and ($.MessageResponse == 'BOM' or $.MessageResponse == 'CAN' or $.MessageResponse == 'PSH' or $.MessageResponse == 'MAR' ))
+
+---
+{
+    "entity" : 
+    {
+        "type": vErrorsA3[0].StatusType,
+        "id": vErrorsA3[0].CDUIDHeader,
+        "external_id": vErrorsA3[0].CDOrderNumber,
+        "latest_message_identifier": (now() >> "UTC") as Number
+    },
+    
+ "errors": vErrorsA3 map {
+ "code": $.MessageResponse default "",
+ "detail": "The Batch process failed due to " ++ $.MessageResponseDesc  ,
+("source": {
+         "path" : "order_items: " ++ $.CDUIDDetail ++ "Ticket_id:" ++ $.CDTicketConvNumber
+          }) if($.RecordProcessed =='E' )
+}
+
+}
+ ]]></ee:set-payload>
+					</ee:message>
+					<ee:variables >
+						<ee:set-variable variableName="Code" ><![CDATA[payload[0].MessageResponse]]></ee:set-variable>
+					</ee:variables>
+				</ee:transform>
+				<logger level="INFO" doc:name="Logger" doc:id="178adc7f-681b-44ed-a149-21ecaa9cf044" message="#[payload]" />
+			</when>
+			<when expression="#[((payload.StatusType contains 'Batch') and (payload.RecordProcessed contains 'E') and (payload.HoldCode contains 'A1'))  or ((payload.RecordProcessed contains 'Y') and (payload.HoldCode contains 'A3'))]">
+				<logger level="INFO" doc:name="E1 to CD with only RecordProcessed 'E' " doc:id="9277873c-e2a0-47f8-8f90-11e18527378d" message="+++Order Error report that contains only Record Processed with only 'E'+++"/>
+				<ee:transform doc:name="Transform Message" doc:id="abff3b36-576d-4fd7-b485-9a9b0b57ce2e" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json 
+var vErrorsA3= payload filter (($.StatusType contains 'Batch') and ($.RecordProcessed contains 'E') and ($.HoldCode contains 'A1'))  or (($.RecordProcessed contains 'Y') and ($.HoldCode contains 'A3'))
+---
+
+ {
+    "entity" : {
+        "type": vErrorsA3[0].StatusType,
+        "id": vErrorsA3[0].CDUIDHeader,
+         "external_id": vErrorsA3[0].CDOrderNumber,
+         "latest_message_identifier": (now() >> "UTC") as Number
+    },
+
+"errors": vErrorsA3 map {
+ "code": $.MessageResponse default "",
+ "detail": "The Batch process failed due to " ++ $.MessageResponseDesc  
+  } 
+ }]]></ee:set-payload>
+					</ee:message>
+					<ee:variables >
+						<ee:set-variable variableName="Code" ><![CDATA[payload.MessageResponse]]></ee:set-variable>
+					</ee:variables>
+				</ee:transform>
+				<logger level="INFO" doc:name="Logger" doc:id="f7e04a1d-970d-4626-ac8f-49f0c15da6a1" message="#[payload]" />
+			</when>
+			<when expression="#[(payload.RecordProcessed contains 'E')]">
+				<logger level="INFO" doc:name="Specified Errorcode recevied from E1" doc:id="14e709c6-a438-4931-979a-d01f7a5012a3" message="+++Otherthan Specified Errorcode recevied from E1+++" />
+				<ee:transform doc:name="ONLY FOR 'E'" doc:id="5cdc968e-4c11-4d6f-807e-70f56d2dfc18" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+var vErrorsA3= payload
+
+---
+{
+    "entity" : 
+    {
+        "type":  vErrorsA3[0].StatusType,
+        "id": vErrorsA3[0].CDUIDHeader,
+        "external_id": vErrorsA3[0].CDOrderNumber,
+        "latest_message_identifier": (now() >> "UTC") as Number
+    },
+    
+ "errors": vErrorsA3 map {
+ "code": $.MessageResponse default "",
+ "detail": "The Batch process failed due to " ++ $.MessageResponseDesc  ,
+("source": {
+         "path" : "order_items: " ++ $.CDUIDDetail ++ $.CDTicketConvNumber
+          }) if($.RecordProcessed =='E' )
+} distinctBy $.code
+
+}
+ ]]></ee:set-payload>
+					</ee:message>
+					<ee:variables >
+						<ee:set-variable variableName="Code" ><![CDATA[payload[0].MessageResponse]]></ee:set-variable>
+					</ee:variables>
+				</ee:transform>
+				<logger level="INFO" doc:name="Logger" doc:id="6c6e6ba3-806b-4924-b596-d4df47573962" message="#[payload]" />
+			</when>
+			<otherwise>
+				<logger level="INFO" doc:name="Logger" doc:id="08d019ad-1233-4180-aa7e-74ea3d81c377" message="+++No Order errors repor from E1 for process into CD +++" />
+				<set-variable value="Y" doc:name="NoError" doc:id="3b078d14-dc0f-4ff1-9f6a-bf1a0f171c2d" variableName="NoError" />
+				<logger level="INFO" doc:name="Logger" doc:id="48d9425c-b14a-4f67-a9e9-aba5e9ddd3c8" message="#[payload]" />
+
+			</otherwise>
+		
+</choice>
+		<logger level="INFO" doc:name="Logger" doc:id="761e481c-d5ef-4b53-9c0f-518272cc2548" message="+++ All Batch error reponse of Error Line numbes of respones Data with 'E' has been  successfully submitted.  +++" />
+		<choice doc:name="Choice" doc:id="6c670426-ec7f-4392-93cd-b44f57e7e06c" >
+			<when expression="#[vars.NoError !='Y']">
+				<flow-ref doc:name="Request Flow" doc:id="f926413f-be06-4bf3-a4a7-e6ed53e78c22" name="RequestFlow" />
+				<logger level="INFO" doc:name="Transformed Batch error response data" doc:id="e0856620-6940-44a8-9c14-c66502fd760d" message="+++ Transformed Batch error response data submitted successfully into CD +++" />
+				<ee:transform doc:name="Response data" doc:id="9b88c422-3a12-4196-90ce-36f3feaf63c1">
+			<ee:message>
+				<ee:set-payload><![CDATA[" Batch error report Data successfully submitted to API-5 successfully "]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+				<logger level="INFO" doc:name="Logger" doc:id="13d1d2f5-bffd-4db0-8816-084c447e264a" message="+++ Batch error report Data successfully submitted to API-5 :: Request_Id - #[vars.request_id]successfully submitted ++++++" />
+			</when>
+			<otherwise >
+				<logger level="INFO" doc:name="" doc:id="f574b6e5-8a11-4a49-9cce-06bb66d23b39" message='"+++No Batch error status found+++"'/>
+				<ee:transform doc:name="No Batch errorstatus found" doc:id="a44eb760-a51f-45f3-885a-078f275c5c9b" >
+					<ee:message >
+						<ee:set-payload ><![CDATA['No Batch errorstatus found']]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</otherwise>
+		</choice>
+	</flow>
+</mule>

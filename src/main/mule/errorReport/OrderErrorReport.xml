@@ -1,0 +1,190 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+	<flow name="Ordererrorreport" doc:id="b728e7d3-9c4c-4fca-87e3-5bd15ea325bc" >
+		<logger level="INFO" doc:name="Logger" doc:id="aaff1072-8535-4644-b256-7d37ca726e7a" message="+++Entering into Order Error report+++" />
+		<logger level="INFO" doc:name="Logger" doc:id="a577467c-718b-428e-a7b0-fe3780d3b419" message="+++ Payload received from E1 after decoding +++"/>
+		<logger level="INFO" doc:name="Logger" doc:id="7ccf57b4-fb98-4e17-a6aa-0ac5ac1b02e3" message="+++ Order Error report received from E1 for processing to API-5 +++" />
+		<logger level="INFO" doc:name="Logger" doc:id="10fb9e89-827f-4059-b31c-f435f92ccc13" message="+++ Sending to CD by processing into api-5 ++++"/>
+		<ee:transform doc:name="Order Status Data fields sending to CD JSON Data" doc:id="4fc47de4-3574-4af1-869e-8fb34469a310">
+			<ee:message >
+				<ee:set-payload ><![CDATA[payload.StatusResponse.*Status]]></ee:set-payload>
+			</ee:message>
+			<ee:variables>
+				<ee:set-variable variableName="buisObj"><![CDATA["ErrorReport"]]></ee:set-variable>
+			</ee:variables>
+		</ee:transform>
+		<ee:transform doc:name="Setup Variables" doc:id="46cca5b0-9db5-42b4-8058-ecf03cd182a9">
+			<ee:message />
+			<ee:variables>
+				<ee:set-variable variableName="request_id"><![CDATA[%dw 2.0
+output application/java
+---
+payload.SequenceNumber[0]]]></ee:set-variable>
+			</ee:variables>
+		</ee:transform>
+		<choice doc:name="Choice" doc:id="16d93feb-d022-44ea-a686-362551424f98" >
+			<when expression="#[((payload.RecordProcessed contains ('E')) and ((payload.MessageResponse contains ('LOC')) or (payload.MessageResponse contains('ADD') ) or (payload.MessageResponse contains('CAS') ) ))]">
+				<logger level="INFO" doc:name="E1 to CD for RecordProcessed 'E' and MessageResponse 'LOC' ,'CAS','ADD' and 'BNF'" doc:id="003bc551-c7a3-4fdf-a954-564de8c9e0da" message="+++Error report received from E1 that contains as a Message Reponse of E1 to CD for RecordProcessed 'E' and MessageResponse  of 'LOC' ,'CAS','ADD' and 'BNF' +++"/>
+				<ee:transform doc:name="Transform Message" doc:id="988f66ae-4251-4128-a9be-c57deca8a120">
+					<ee:message>
+						<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+var vErrorsA3= payload filter (($.RecordProcessed == 'E') and ($.MessageResponse == 'LOC' or $.MessageResponse == 'CAS' or $.MessageResponse == 'ADD' ))
+
+---
+{
+    "entity" : 
+    {
+        "type": "order",
+        "id": vErrorsA3[0].CDUIDHeader,
+        "external_id": vErrorsA3[0].CDOrderNumber
+    },
+
+"errors": vErrorsA3 map
+{
+ "code": $.MessageResponse default "" ,
+ "detail": "The validation of line item failed due to " ++ $.MessageResponseDesc default '',
+} distinctBy $
+ 
+ }]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+				<logger level="INFO" doc:name="Logger" doc:id="0642cf0d-89c8-4a66-b59b-a6fe3d1aa91b" message="#[payload]"/>
+			</when>
+			<when expression="#[((payload.MessageResponse contains ('BOM')) or (payload.MessageResponse contains ('CAN')) or (payload.MessageResponse contains('PSH') ) or (payload.MessageResponse contains('MAR') ))]">
+				<logger level="INFO" doc:name="E1 to CD for RecordProcessed 'E' and MessageResponse BOM,'CAN','PSH' and 'MAR'" doc:id="89dc6371-44c7-4f66-a4fd-681747912c89" message="+++E1 to CD for MessageResponse BOM,'CAN','PSH' and 'MAR'+++"/>
+				<ee:transform doc:name="Transform Message" doc:id="d4cdfba2-4e90-4bcf-baf9-9eb97a9e8255" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+var vErrorsA3= payload filter ($.MessageResponse == 'BOM' or $.MessageResponse == 'CAN' or $.MessageResponse == 'PSH' or $.MessageResponse == 'MAR' )
+
+---
+{
+    "entity" : 
+    {
+        "type": vErrorsA3[0].StatusType,
+        "id": vErrorsA3[0].CDUIDHeader,
+        "external_id": vErrorsA3[0].CDOrderNumber
+    },
+    
+ "errors": vErrorsA3 map {
+ "code": $.MessageResponse default "",
+ "detail": "The validation of line item failed due to " ++ $.MessageResponseDesc  ,
+("source": {
+         "path" : "order_items: " ++ $.CDUIDDetail
+          }) if($.RecordProcessed =='E' )
+}
+
+}
+ ]]></ee:set-payload>
+					</ee:message>
+					<ee:variables >
+						<ee:set-variable variableName="Code" ><![CDATA[payload[0].MessageResponse]]></ee:set-variable>
+					</ee:variables>
+				</ee:transform>
+				<logger level="INFO" doc:name="Logger" doc:id="933e6844-3787-4b38-a1dc-273fa942ce8e" message="#[payload]" />
+			</when>
+			<when expression="#[((payload.RecordProcessed contains 'E') and (payload.HoldCode contains 'A1'))  or ((payload.RecordProcessed contains 'Y') and (payload.HoldCode contains 'A3'))]">
+				<logger level="INFO" doc:name="E1 to CD with only RecordProcessed 'E' " doc:id="f45cd786-7692-48b5-adc7-b60778dbb15d" message="+++Order Error report that contains only Record Processed with only 'E'+++"/>
+				<ee:transform doc:name="Transform Message" doc:id="6bd21b16-99ba-4209-a8b1-c39908a0e57c" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json 
+
+---
+
+ {
+    "entity" : {
+        "type": payload[0].StatusType,
+        "id": payload[0].CDUIDHeader,
+          "external_id": payload[0].CDOrderNumber
+    },
+
+"errors": payload map {
+ "code": $.MessageResponse default "",
+ "detail": "The validation of line item failed due to " ++ $.MessageResponseDesc  
+  } 
+ }]]></ee:set-payload>
+					</ee:message>
+					<ee:variables >
+						<ee:set-variable variableName="Code" ><![CDATA[payload.MessageResponse]]></ee:set-variable>
+					</ee:variables>
+				</ee:transform>
+				<logger level="INFO" doc:name="Logger" doc:id="b6d176ef-53b7-4d11-843a-59e211f1298b" message="#[payload]" />
+			</when>
+			<when expression="#[(payload.RecordProcessed contains 'E')]">
+				<logger level="INFO" doc:name="Specified Errorcode recevied from E1" doc:id="bd66ac36-947c-4d0b-b6a6-631b308deee2" message="+++Otherthan Specified Errorcode recevied from E1+++"/>
+				<ee:transform doc:name="ONLY FOR 'E'" doc:id="07437fc8-4154-452b-8e49-a3f6d0b8d3ac" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+var vErrorsA3= payload
+
+---
+{
+    "entity" : 
+    {
+        "type":  vErrorsA3[0].StatusType,
+        "id": vErrorsA3[0].CDUIDHeader,
+        "external_id": vErrorsA3[0].CDOrderNumber
+    },
+    
+ "errors": vErrorsA3 map {
+ "code": $.MessageResponse default "",
+ "detail": "The validation of line item failed due to " ++ $.MessageResponseDesc  ,
+("source": {
+         "path" : "order_items: " ++ $.CDUIDDetail
+          }) if($.RecordProcessed =='E' )
+} distinctBy $.code
+
+}
+ ]]></ee:set-payload>
+					</ee:message>
+					<ee:variables >
+						<ee:set-variable variableName="Code" ><![CDATA[payload[0].MessageResponse]]></ee:set-variable>
+					</ee:variables>
+				</ee:transform>
+				<logger level="INFO" doc:name="Logger" doc:id="5b5f7ff2-252f-4b6d-9f84-68457a85d11d" message="#[payload]" />
+			</when>
+			<otherwise >
+				<logger level="INFO" doc:name="Logger" doc:id="d2eca327-c68b-4dec-a820-bc400ff51f6a" message="+++No Order errors repor from E1 for process into CD +++"/>
+				<ee:transform doc:name="Transform Message" doc:id="768368db-b9f8-448f-aac6-92bcba7bbdd6" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+var vErrors= payload filter $.RecordProcessed=='Y'
+---
+
+ {
+    "entity" : 
+    {
+        "type":  vErrorsA3[0].StatusType,
+        "id": vErrors[0].CDUIDHeader,
+          "external_id": vErrors[0].CDOrderNumber
+    },
+
+"errors": []
+ }
+ 
+ ]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+				<logger level="INFO" doc:name="Logger" doc:id="f56a2f71-cef3-48b7-8afb-96495d909b61" message="#[payload]" />
+			</otherwise>
+		</choice>
+		<logger level="INFO" doc:name="Logger" doc:id="63a62f58-07a4-4f14-9b51-5525a2f8a91b" message="+++ All Order reponse of Error  Line numbes  error respones Data successfully submitted.  +++" />
+		<flow-ref doc:name="Request Flow" doc:id="b67a9329-397c-4691-8dee-ec499517998c" name="RequestFlow" />
+		<logger level="INFO" doc:name="Logger" doc:id="bf64fe7e-f969-49ce-b871-e89cd8d026d7" message="+++ Transformed Order error response Master submitted successfully into CD +++" />
+		<ee:transform doc:name="Transform Message" doc:id="ba8f878d-9110-41ef-b5d4-c4640fe46ee3" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[" Order error report Data successfully submitted to API-5 successfully "]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<logger level="INFO" doc:name="Logger" doc:id="4e5fb301-f67b-4f71-bed8-4ed61011b3c1" message="+++ Order error report Data successfully submitted to API-5 :: Request_Id - #[vars.request_id]successfully submitted ++++++" />
+	</flow>
+</mule>

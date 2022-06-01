@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd">
+	<sub-flow name="jdeuk-batch-conf-to-cd" doc:id="60eb82fa-3e28-41fd-84bf-77a415adf4b4" >
+<!-- 		<http:request method="PUT" doc:name="Calling API5" doc:id="fa210947-8deb-4f10-a001-a3f1f32ef99a" config-ref="HTTP_Request_configuration" path="/${secure::request.path}" /> -->
+		<logger level="INFO" doc:name="Batch Confirmation Starts" doc:id="705a1abe-be37-4def-a138-1990c4e13869" message="+++Entering into Batch confirmation+++" />
+		<logger level="INFO" doc:name="Logger" doc:id="35c1a715-4798-41ff-aba0-13c566d4857b" message="+++ Batch Confirmation Data for processing to API-5 +++" />
+		<ee:transform doc:name="Setup Variables" doc:id="d5281fa6-f624-4a93-85f7-48b75f9772ce">
+			<ee:message />
+			<ee:variables>
+				<ee:set-variable variableName="buisObj"><![CDATA[%dw 2.0
+output application/java
+---
+"ErrorReport"]]></ee:set-variable>
+				<ee:set-variable variableName="request_id"><![CDATA[%dw 2.0
+output application/java
+---
+payload.BatchConfirmation.SequenceNumber]]></ee:set-variable>
+				<ee:set-variable variableName="sourceSys"><![CDATA[p('sourceSystem')]]></ee:set-variable>
+				<ee:set-variable variableName="external_Id"><![CDATA[%dw 2.0
+output application/java
+---
+payload.BatchConfirmation.TicketConvNumber
+]]></ee:set-variable>
+				<ee:set-variable variableName="sequence_num"><![CDATA[%dw 2.0
+output application/json
+---
+payload.BatchConfirmation.SequenceNumber]]></ee:set-variable>
+				<ee:set-variable variableName="TicketId" ><![CDATA[%dw 2.0
+output application/json
+---
+payload.BatchConfirmation.TicketReference]]></ee:set-variable>
+			</ee:variables>
+		</ee:transform>
+		<ee:transform doc:name="MasterData fields to CD JSON Data" doc:id="aea16259-1507-4a33-ae30-d3979ba30ce1" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+  "external_id":payload.BatchConfirmation.SequenceNumber ,
+  "batch_number": "1",
+  "vehicle_external_id":payload.BatchConfirmation.VehicleIdNew,
+  "order_external_id": payload.BatchConfirmation.DocumentOrderInvoice,
+  "order_item_external_id": payload.BatchConfirmation.LineNumber,
+  "quantity": payload.BatchConfirmation.UnitsTransactionQty,
+  "events": 
+     {
+  	"batch_start_time" : payload.BatchConfirmation.BatchStartTime,
+  	"batch_end_time" : payload.BatchConfirmation.BatchEndTime,
+     },
+  "local_time_zone" :now() >> "GMT+1",
+  "payload_status" :"en_route",
+  "slump": "3",
+  "latest_message_identifier": vars.messageIdentifier
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<logger level="INFO" doc:name="Logger" doc:id="cd9d7ee3-0272-4191-9c26-b50cb02b11d8" message="+++ Transformed BatchConfirmation data ---- TicketId - #[vars.external_id] , Sequencenumber- #[vars.request_id], message_identifier- #[payload.latest_message_identifier]+++" />
+<!-- 		<flow-ref doc:name="Flow Reference" doc:id="0ef57921-530c-4173-8fa0-c86df8ee16b3" name="RequestFlow" /> -->
+		<ee:transform doc:name="Response Data" doc:id="c916be34-ff3b-4d9b-bf46-cc79e4e9616d" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/xml
+---
+{
+  "MuleResponse": {
+    "SequenceNumber": vars.sequence_num,
+    "TicketId": vars.TicketId,
+    "StatusCode": payload.status_code,
+    "StatusMessage": payload.status_message,
+    "ErrorText" : payload.error_text
+  }
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<logger level="INFO" doc:name="Logger" doc:id="e7c6b8f9-8a7e-477f-98a1-f8de7aa1f7e4" message="+++ Batch Confirmation Master Data :: Request_Id - #[vars.request_id], TicketId-#[vars.external_id] successfully submitted +++" />
+	</sub-flow>
+</mule>

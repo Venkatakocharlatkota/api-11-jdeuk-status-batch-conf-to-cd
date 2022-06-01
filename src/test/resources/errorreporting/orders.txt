@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:cloudhub="http://www.mulesoft.org/schema/mule/cloudhub" xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http"
+	xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/cloudhub http://www.mulesoft.org/schema/mule/cloudhub/current/mule-cloudhub.xsd">
+	<flow name="jdeuk-orders1data-to-cd" doc:id="4ca3b3f6-b24d-4cd0-b803-681bff219b8e" >
+		<logger level="INFO" doc:name="Logger" doc:id="420526a2-8a4e-45a7-87c2-b5391a7313a2" message="+++ Orderstatus Response  Data received for processing to API-5 +++" />
+		<ee:transform doc:name="Order Status Data fields sending to CD JSON Data" doc:id="12f407b2-4b94-49d8-97a5-a50cfef48c71">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+payload.Orders.*Order]]></ee:set-payload>
+			</ee:message>
+			<ee:variables >
+				<ee:set-variable variableName="buisObj" ><![CDATA[%dw 2.0
+output application/java
+---
+"OrderData"]]></ee:set-variable>
+				<ee:set-variable variableName="vError" ><![CDATA[%dw 2.0
+output application/java
+---
+[]]]></ee:set-variable>
+			</ee:variables>
+		</ee:transform>
+		
+			
+				<foreach doc:name="For Each" doc:id="c077dc19-a49a-4fd5-8ffd-96f6aa545a41" collection="#[payload]">
+<!-- 			<try doc:name="Try" doc:id="95fdf08a-7449-460d-9cb4-4dcf4e514f10"> -->
+					<choice doc:name="Choice" doc:id="87a90bf0-f77d-4598-8e4c-e0aa17dcc643">
+				<when expression="#[payload.RecordProcessed !='Y']">
+					<logger level="INFO" doc:name="Logger" doc:id="c1a407e9-6fb1-49a3-a855-453d960bd5cd" message="+++Enter into Errored Order Response master+++" />
+					<ee:transform doc:name="Setup Order, Sequence,external_id Variables" doc:id="00932715-49ab-4e65-a9ff-08d03e5cc3d9">
+						<ee:message />
+						<ee:variables>
+							<ee:set-variable variableName="buisObj"><![CDATA[%dw 2.0
+output application/java
+---
+"OrderData"]]></ee:set-variable>
+							<ee:set-variable variableName="request_id"><![CDATA[%dw 2.0
+output application/java
+---
+payload.SequenceNumber]]></ee:set-variable>
+							<ee:set-variable variableName="sourceSys"><![CDATA[p('sourceSystem')]]></ee:set-variable>
+							<ee:set-variable variableName="external_Id"><![CDATA[%dw 2.0
+output application/java
+---
+payload.CDOrderNumber
+]]></ee:set-variable>
+							<ee:set-variable variableName="sequence_num"><![CDATA[%dw 2.0
+output application/java
+---
+payload.SequenceNumber]]></ee:set-variable>
+							<ee:set-variable variableName="order_id"><![CDATA[%dw 2.0
+output application/json
+---
+payload.CDOrderNumber]]></ee:set-variable>
+						</ee:variables>
+					</ee:transform>
+					<ee:transform doc:name="Orde_Line_Numbers" doc:id="251623de-b7a3-4395-94d1-5751e6907fb4">
+						<ee:message>
+							<ee:set-payload><![CDATA[%dw 2.0
+output application/json 
+---
+{
+id: uuid(), 
+external_id:payload.CDUIDHeader,
+status :if (payload.RecordProcessed == "E" and payload.HoldCode == "A3")  'requested' else 'unconfirmed',
+errorResponse : if (payload.MessageResponseDesc != null ) payload.MessageResponse ++ ","++ payload.MessageResponseDesc ++ "," ++ payload.OrderLineNo else payload.RecordProcessed
+		
+}]]></ee:set-payload>
+						</ee:message>
+						<ee:variables />
+					</ee:transform>
+					<set-variable value="#[payload]" doc:name="Order Response" doc:id="d1ddb6c6-e82b-4005-9136-dcc7248ca065" variableName="vOresponse" />
+				</when>
+				<otherwise>
+					<logger level="INFO" doc:name="No Errored  Order Data of Record processed" doc:id="161fa55c-0225-4fdf-a690-150b46a3908a" message="#[payload]" />
+					<logger level="INFO" doc:name="Logger" doc:id="4b7c32fe-2496-4e1c-af5c-5ab920640aad" message='"+++ No error order status of master data found in E1 , processing response into CD+++"' />
+				</otherwise>
+			</choice>
+				
+<!-- 				</try> -->
+		
+</foreach>
+		<logger level="INFO" doc:name="" doc:id="3729d361-5fa9-43a0-8550-1a5825f81f2f" message="+++ Order status Data :: Request_Id - #[vars.request_id], orderid-#[vars.order_id] successfully submitted +++" />
+		<logger level="INFO" doc:name="Logger" doc:id="5bda2487-ff1f-4670-85e1-c090e6dac06e" message="+++ All Order Line numbes respones Data successfully submitted.  +++" />
+<!-- 			<flow-ref doc:name="Jobsite master" doc:id="989e1908-87b6-40a0-a729-d3338897ef89" name="jdeuk-jobsitedata-to-cd" /> -->
+		<ee:transform doc:name="Transform Message" doc:id="06af7c01-7953-4916-a552-51a810ceedff" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[vars.vOresponse]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<logger level="INFO" doc:name="Logger" doc:id="5ebfcd8b-32d9-46bf-87b5-cfe4b4cda03c" message="+++ Transformed Order Response Master ---- #[vars.vOresponse] +++" />
+<!-- 		<error-handler ref="common-error-handler" /> -->
+			
+	
+		
+	</flow>
+</mule>

@@ -1,0 +1,10 @@
+sourceSystem : "JDE_UK"
+systemIdentifier : "UK1"
+default_expiryDate: "2999-09-09"
+
+itemType: "CONCRETE_MIX"
+unitOfMeasurement: "CUBIC_METER"
+
+#for testing
+https.port: "8054"
+

@@ -1,0 +1,39 @@
+#%RAML 1.0
+title: api-11-jdeuk-status-batch-conf-to-cd
+description: "API to submit master data coming from UK region to Concrete Direct"
+version: 1.0.0
+protocols: [ HTTPS, HTTP]
+baseUri: /api/
+
+traits:
+  client-id-required:
+    headers:
+      client_id:
+        type: string
+      client_secret:
+        type: string
+    
+    responses:
+      401:
+        description: Unauthorized or invalid client application credentials
+      500:
+        description: Bad response from authorization server, or WSDL SOAP Fault error
+
+/orderstatus:
+  put:
+    description: "Create or Update orderstatus data and submit to Concrete Direct"
+   
+
+/batchconfirmation:
+  put:
+    description: "Create or Update batch confirmation data and submit to Concrete Direct."
+
+/errorstatus:
+  put:
+    description: "sends or submits the order error report data to Concrete Direct."
+    
+/batcherrorstatus:
+  put:
+    description: "Create or Update batch error status data and submit to Concrete Direct."
+
+	  
