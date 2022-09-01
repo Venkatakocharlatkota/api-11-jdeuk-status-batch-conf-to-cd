@@ -1,0 +1,233 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:cloudhub="http://www.mulesoft.org/schema/mule/cloudhub" xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http"
+	xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/cloudhub http://www.mulesoft.org/schema/mule/cloudhub/current/mule-cloudhub.xsd">
+	<flow name="jdeuk-errorreportdata-to-cd" doc:id="4ca3b3f6-b24d-4cd0-b803-681bff219b8e" >
+		<logger level="INFO" doc:name="Logger" doc:id="420526a2-8a4e-45a7-87c2-b5391a7313a2" message="+++ Orderstatus Response  Data received for processing to API-5 +++" />
+		<ee:transform doc:name="Order Status Data fields sending to CD JSON Data" doc:id="12f407b2-4b94-49d8-97a5-a50cfef48c71">
+			<ee:message>
+			</ee:message>
+			<ee:variables>
+				<ee:set-variable variableName="buisObj"><![CDATA[%dw 2.0
+output application/java
+---
+"OrderData"]]></ee:set-variable>
+			</ee:variables>
+		</ee:transform>
+		<ee:transform doc:name="Setup Order, Sequence,external_id Variables" doc:id="e77e4989-74e8-44ed-a9aa-17b20616c0c7">
+					<ee:message >
+			</ee:message>
+					<ee:variables>
+						<ee:set-variable variableName="buisObj"><![CDATA[%dw 2.0
+output application/java
+---
+"OrderData"]]></ee:set-variable>
+						<ee:set-variable variableName="request_id"><![CDATA[%dw 2.0
+output application/json
+---
+payload.Orders.*Order.SequenceNumber[0]]]></ee:set-variable>
+						<ee:set-variable variableName="sourceSys"><![CDATA[p('sourceSystem')]]></ee:set-variable>
+						<ee:set-variable variableName="external_Id"><![CDATA[%dw 2.0
+output application/java
+---
+payload.Orders.*Order.CDOrderNumber[0]
+]]></ee:set-variable>
+						<ee:set-variable variableName="sequence_num"><![CDATA[%dw 2.0
+output application/json
+---
+payload.Orders.*Order.SequenceNumber[0]]]></ee:set-variable>
+						<ee:set-variable variableName="order_id"><![CDATA[%dw 2.0
+output application/json
+---
+payload.Orders.*Order.CDOrderNumber[0]]]></ee:set-variable>
+				<ee:set-variable variableName="vError" ><![CDATA[isEmpty(payload.Orders.*Order filter $.RecordProcessed =="E" and $.HoldCode ==null)]]></ee:set-variable>
+					</ee:variables>
+				</ee:transform>
+		<logger level="INFO" doc:name="Logger" doc:id="140af349-6ba5-4163-915d-fdef1d0d808e" />
+		<set-variable value="#[payload]" doc:name="orderdata" doc:id="3f4818cc-69a1-4fa5-9280-30998ec85b22" variableName="orderdata"/>
+		<ee:transform doc:name="Transform Message" doc:id="0915e59d-d422-4055-b6c2-4162851de8cd">
+					<ee:message>
+						<ee:set-payload><![CDATA[payload.Orders.*Order filter $.RecordProcessed =="E" ]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+		<ee:transform doc:name="Orde_Line_Numbers" doc:id="1b539612-e220-4fe0-bf43-f301e8e620f5">
+					<ee:message>
+						<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+payload map {
+
+id:$.CDUIDHeader, 
+external_id:$.CDOrderNumber,
+status :if ($.RecordProcessed == "E") 'requested' else 'unconfirmed',
+errorResponse : $.OrderLineNo ++ $.CDUIDDetail ++  if($.MessageResponse !=null) $.MessageResponse else ""
+
+}]]></ee:set-payload>
+					</ee:message>
+					<ee:variables />
+				</ee:transform>
+		<logger level="INFO" doc:name="Logger" doc:id="04d97dd8-4dc1-4cc5-82a6-68c28219fb49" message="#[payload]"/>
+		<ee:transform doc:name="filtering of RecordProcessed is 'E'" doc:id="a67fa5be-8538-4bad-ae24-5057a28f47d5">
+					<ee:message>
+						<ee:set-payload><![CDATA[payload.Orders.*Order filter $.RecordProcessed =="E" and $.HoldCode ==null]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+		<ee:transform doc:name="Error-line detail" doc:id="72efa66e-c886-4718-9e5c-eb0e49e4f714">
+					<ee:message>
+						<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+
+ {
+    "entity" : {
+        "type": "order",
+        "id": payload.CDUIDHeader[0],
+          "external_id": payload.CDOrderNumber[0]
+    },
+
+"errors": payload map {
+ "title": "Validation of Order failed",
+ "detail": "The validation of Order failed in E1 due to credit_hold or credit_stop of item . The value at" ++ $.MessageResponse ++ "is missing",
+ "source": {
+         "path" : "item Id:" ++ $.CDUIDDetail ++ "for line item" ++ $.OrderLineNo
+ }
+ }
+ }]]></ee:set-payload>
+					</ee:message>
+					<ee:variables />
+				</ee:transform>
+		<ee:transform doc:name="payload" doc:id="b7bee112-6a16-480a-8abe-57290112ba09" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[
+%dw 2.0
+output application/json
+---
+payload]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<flow-ref doc:name="Flow Reference" doc:id="2b405429-8b37-4cc3-bb28-d92cbe7169ca" name="orderstatusupdateFlow"/>
+		<logger level="INFO" doc:name="Logger" doc:id="5bda2487-ff1f-4670-85e1-c090e6dac06e" message="+++ All Order Line numbes respones Data successfully submitted.  +++" />
+<!-- 			<flow-ref doc:name="Jobsite master" doc:id="989e1908-87b6-40a0-a729-d3338897ef89" name="jdeuk-jobsitedata-to-cd" /> -->
+		<logger level="INFO" doc:name="Logger" doc:id="3729d361-5fa9-43a0-8550-1a5825f81f2f" message="+++ Order status Data :: Request_Id - #[vars.request_id], orderid-#[vars.order_id] successfully submitted +++" />
+		<logger level="INFO" doc:name="Logger" doc:id="5ebfcd8b-32d9-46bf-87b5-cfe4b4cda03c" message="+++ Transformed Order Response Master  +++" />
+<!-- 		<error-handler ref="common-error-handler" /> -->
+			
+	
+		
+	</flow>
+	<flow name="orderstatusupdateFlow" doc:id="e3afd960-93d1-42f5-bd52-fdbc0bb5b515" >
+		<logger level="INFO" doc:name="Logger" doc:id="fcd4e878-8e2f-4700-990c-4ef6254a1a41" message="+++ Orderstatus data received for processing to API-5 +++" />
+		<ee:transform doc:name="Order Payload" doc:id="b54b74cd-061d-4a01-bd62-aa15039345ab" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+payload.Orders.*Order]]></ee:set-payload>
+			</ee:message>
+			<ee:variables >
+				<ee:set-variable variableName="buisObj" ><![CDATA[%dw 2.0
+output application/java
+---
+"OrderData"]]></ee:set-variable>
+			</ee:variables>
+		</ee:transform>
+		<choice doc:name="Choice" doc:id="6b0176d6-1390-4be8-a6e7-dd9e1914b277" >
+			<when expression="#[payload.HolCode == 'A3']">
+				<ee:transform doc:name="Transform Message" doc:id="d5a9c838-d02f-426d-95d7-a539b46c2eb5" >
+					<ee:message >
+						<ee:set-payload ><![CDATA["requested"]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+				<ee:transform doc:name="Order_Status" doc:id="f839c38c-9934-4980-b4fe-dcfa86707a20" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+payload map {
+
+id:$.CDUIDHeader, 
+external_id:$.CDOrderNumber,
+status :if ($.RecordProcessed == "E" and $.HoldCode == 'A3' ) 'requested' else 'unconfirmed',
+errorResponse : $.OrderLineNo ++ $.CDUIDDetail ++  if($.MessageResponse !=null) $.MessageResponse else ""
+
+}]]></ee:set-payload>
+					</ee:message>
+					<ee:variables />
+				</ee:transform>
+			</when>
+			<when expression=" (payload.RecordProcessed == 'E'  ) and (payload.HolCode == 'A1')">
+				<ee:transform doc:name="Transform Message" doc:id="4d25f55a-76ea-47ba-b7f9-fa5df7faab10" >
+					<ee:message >
+						<ee:set-payload ><![CDATA["requested"]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+				<ee:transform doc:name="Order_Status" doc:id="11372f3d-46d3-4e31-8b38-dd80d265176a" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+payload map {
+
+id:$.CDUIDHeader, 
+external_id:$.CDOrderNumber,
+status :if ($.RecordProcessed == "E" and $.HoldCode == 'A1' ) 'requested' else 'unconfirmed',
+errorResponse : $.OrderLineNo ++ $.CDUIDDetail ++  if($.MessageResponse !=null) $.MessageResponse else ""
+
+}]]></ee:set-payload>
+					</ee:message>
+					<ee:variables />
+				</ee:transform>
+			</when>
+			<when expression="payload.RecordProcessed == 'E' ">
+				<ee:transform doc:name="Transform Message" doc:id="72b26d85-654f-4c5f-9ff5-8df9edb47237" >
+					<ee:message >
+						<ee:set-payload ><![CDATA["requested"]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+				<ee:transform doc:name="Order_Status" doc:id="a2c0264f-7650-4508-a0b8-3c19f3d10cbb" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+payload map {
+
+id:$.CDUIDHeader, 
+external_id:$.CDOrderNumber,
+status :if ($.RecordProcessed == "E" and $.HoldCode == null ) 'requested' else 'unconfirmed',
+errorResponse : $.OrderLineNo ++ $.CDUIDDetail ++  if($.MessageResponse !=null) $.MessageResponse else ""
+
+}]]></ee:set-payload>
+					</ee:message>
+					<ee:variables />
+				</ee:transform>
+			</when>
+			<otherwise >
+				<ee:transform doc:name="Transform Message" doc:id="ad80060f-55db-4c18-ae13-d63e12b6f0b6" >
+					<ee:message >
+						<ee:set-payload ><![CDATA["unconfirmed"]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+				<ee:transform doc:name="Order_Status" doc:id="bd0dfd66-d1dd-4456-8315-f9e18c9e9e12" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+payload map {
+
+id:$.CDUIDHeader, 
+external_id:$.CDOrderNumber,
+status :if ($.RecordProcessed != "E" ) 'unconfirmed' else 'requested',
+//errorResponse : $.OrderLineNo ++ $.CDUIDDetail ++  if($.MessageResponse !=null) $.MessageResponse else ""
+
+}]]></ee:set-payload>
+					</ee:message>
+					<ee:variables />
+				</ee:transform>
+			</otherwise>
+		</choice>
+	</flow>
+</mule>

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:cloudhub="http://www.mulesoft.org/schema/mule/cloudhub" xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http"
+	xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/cloudhub http://www.mulesoft.org/schema/mule/cloudhub/current/mule-cloudhub.xsd">
+	<sub-flow name="e1orderstatusSub_Flow" doc:id="add8c04d-db04-4566-a18e-aedb3f426f9b" >
+		<logger level="INFO" doc:name="Logger" doc:id="9d9b9428-71ef-49c1-b710-101bf1d49488" message="+++ Error report of failed orders reponse Data received for processing to API-5 +++" />
+		<ee:transform doc:name="Transform Message" doc:id="5c6e3a65-7a66-43e4-a10a-e1e12712c3f3" >
+			<ee:message />
+			<ee:variables >
+				<ee:set-variable variableName="buisObj" ><![CDATA["E1OrderStatus"]]></ee:set-variable>
+			</ee:variables>
+		</ee:transform>
+		<logger level="INFO" doc:name="Logger" doc:id="a3cd5221-63bd-42f0-9578-5e571f5c013f" message="+++ Transformed order status +++" />
+		<logger level="INFO" doc:name="Logger" doc:id="46a1066f-ee0e-4fe6-9adf-bf52fde384b5" message="+++ order status response is successfully submitted to API-5 +++++" />
+	</sub-flow>
+</mule>

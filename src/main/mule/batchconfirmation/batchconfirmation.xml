@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd">
+	<flow name="jdeuk-batch-conf-to-cd" doc:id="e2a9d3ad-21ba-4656-8afd-373ce901886a" >
+		<logger level="INFO" doc:name="Batch Confirmation Starts" doc:id="705a1abe-be37-4def-a138-1990c4e13869" message="+++Entering into Batch confirmation+++" />
+		<set-payload value="#[payload.Batches.*BatchConfirmation]" doc:name="Set Payload" doc:id="d4a19308-251e-4cf4-bba2-520a3d094f8c" />
+		<foreach doc:name="For Each" doc:id="5a3afa57-2bb5-4fa8-a299-0537949f1243" collection="#[payload]">
+			<ee:transform doc:name="Setup Variables" doc:id="d5281fa6-f624-4a93-85f7-48b75f9772ce">
+			<ee:message />
+			<ee:variables>
+				<ee:set-variable variableName="buisObj"><![CDATA[%dw 2.0
+output application/java
+---
+"TicketData"]]></ee:set-variable>
+				<ee:set-variable variableName="sourceSys"><![CDATA[p('sourceSystem')]]></ee:set-variable>
+				<ee:set-variable variableName="sequence_num"><![CDATA[%dw 2.0
+output application/json
+---
+payload.SequenceNumber]]></ee:set-variable>
+				<ee:set-variable variableName="TicketId"><![CDATA[%dw 2.0
+output application/json
+---
+payload.ConveyanceNoteNumber]]></ee:set-variable>
+				<ee:set-variable variableName="external_id"><![CDATA[%dw 2.0
+output application/json
+---
+payload.CDUIDTicket
+
+]]></ee:set-variable>
+				<ee:set-variable variableName="request_id"><![CDATA[%dw 2.0
+output application/json
+---
+payload.SequenceNumber]]></ee:set-variable>
+			</ee:variables>
+		</ee:transform>
+			<ee:transform doc:name="MasterData fields to CD JSON Data" doc:id="aea16259-1507-4a33-ae30-d3979ba30ce1">
+			<ee:message>
+					<ee:set-payload ><![CDATA[%dw 2.0
+import * from dw::Runtime
+output application/json
+var vTime = (now() >> "Europe/London") as Date
+
+---
+{
+
+"external_id": if (isEmpty(payload.CDUIDTicket )) fail ("ERROR : Mandatory Field: 'Unique Identifier Ticket ID' cannot be empty.") else (payload.CDUIDTicket default "") ,
+"ticket_reference": if (isEmpty(payload.ConveyanceNoteNumber )) fail ("ERROR : Mandatory Field: 'Ticket Conveyance Note Number' cannot be empty.") else(payload.ConveyanceNoteNumber default ""),
+"latest_message_identifier": vars.messageIdentifier,
+"order_external_id": if (isEmpty(payload.CDUIDHeader )) fail ("ERROR : Mandatory Field: 'Order Number' cannot be empty.") else (payload.CDUIDHeader default ""),
+"order_item_external_id": if (isEmpty(payload.CDUIDDetail)) fail ("ERROR : Mandatory Field: 'Order Item Number' cannot be empty.") else (payload.CDUIDDetail default ""),
+"quantity": payload.BatchLinkLoadSize,
+ ("events" : 
+   {
+      "local_batch_start_time" :vTime ++ payload.BatchLinkTimeTicketSent  replace 'Z' with "" 
+   }) if(payload.BatchLinkTimeTicketSent !=null and payload.BatchLinkTimeTicketSent !=""),
+  "local_time_zone" : Mule::p('timeZone')
+}]]></ee:set-payload>
+			</ee:message>
+				<ee:variables>
+				</ee:variables>
+		</ee:transform>
+			<logger level="INFO" doc:name="Logger" doc:id="032795b0-73b9-4640-84dc-aaeb8e26c84f" message="#[payload]" />
+			<flow-ref doc:name="Request Flow" doc:id="0ef57921-530c-4173-8fa0-c86df8ee16b3" name="RequestFlow" />
+			<logger level="INFO" doc:name="Transformed Payload" doc:id="7d74d73a-251e-4bf7-bece-cb3a1d162d96" message="#[payload]" />
+		</foreach>
+		<set-payload value="#[vars.ResponsePay]" doc:name="Set Payload" doc:id="f9ac2824-f300-4fde-99d6-3011569e6473" />
+		<logger level="INFO" doc:name="Logger" doc:id="cd9d7ee3-0272-4191-9c26-b50cb02b11d8" message="+++ Transformed BatchConfirmation data ---- RequestId-  #[vars.request_id],TicketId - #[vars.external_id] , Sequencenumber- #[vars.request_id], message_identifier- #[payload.latest_message_identifier]+++" />
+		<logger level="INFO" doc:name="Logger" doc:id="cdaa9313-ff37-4b33-a112-f6db44368abc" message='+++"API-11 Flow successfully ended"+++'/>
+	</flow>
+</mule>
