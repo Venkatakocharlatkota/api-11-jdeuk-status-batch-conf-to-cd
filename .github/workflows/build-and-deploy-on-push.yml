@@ -72,5 +72,5 @@ jobs:
     - name: Deploy to dev
       run: |
         artifactName=$(ls *.jar | head -1)
-        mvn deploy -DmuleDeploy 
-     
+        mvn deploy -DmuleDeploy -Dmule.env=staging -Dmule.key=Zp.-WTjwv4xWmcq9rj6XXtKxsyFeNQ*H
+      
