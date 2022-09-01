@@ -1,9 +1,10 @@
 sourceSystem : "JDE_UK"
-systemIdentifier : "UK1"
+systemIdentifier : "UK"
 default_expiryDate: "2999-09-09"
 
 itemType: "CONCRETE_MIX"
 unitOfMeasurement: "CUBIC_METER"
+timeZone: "Europe/London"
 
 #for testing
 https.port: "8054"

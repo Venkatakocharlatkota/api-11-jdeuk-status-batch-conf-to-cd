@@ -1,0 +1,172 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:os="http://www.mulesoft.org/schema/mule/os" xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/os http://www.mulesoft.org/schema/mule/os/current/mule-os.xsd">
+	<flow name="Batchstatuserrorpoint" doc:id="d66c3d3a-d428-4daa-a6ee-0bb628988526" >
+		<logger level="INFO" doc:name="Logger" doc:id="3fbca063-516c-43a5-8437-fabe002e68e3" message="+++Entering into Batch Error report+++" />
+		<ee:transform doc:name="Batch Error Status Data fields sending to CD JSON Data" doc:id="bdc9f4a3-59a4-45ce-812a-b0102e0bfae7">
+			<ee:message >
+				<ee:set-payload ><![CDATA[payload.StatusResponse.*Status]]></ee:set-payload>
+			</ee:message>
+			<ee:variables>
+				<ee:set-variable variableName="buisObj"><![CDATA["ErrorReport"]]></ee:set-variable>
+			</ee:variables>
+		</ee:transform>
+		<set-variable value="#[payload.SequenceNumber[0]]" doc:name="request_id" doc:id="64a161cb-1f33-46b5-b529-92fd1ad9df71" variableName="request_id"/>
+		<choice doc:name="Choice" doc:id="3ee70023-56dd-4e36-b75a-98e85143e096" >
+			<when expression="#[(payload.RecordProcessed contains 'E') or (((payload.HoldCode contains ('A3'))) and (payload.MessageResponse contains (&quot;HLD&quot;)))]">
+				<logger level="INFO" doc:name="E1 to CD for RecordProcessed 'E' and MessageResponse BOM,CAN,LOC,MAR,HEQ,MOQ,BNF and HLD" doc:id="191c9f27-e655-493d-a929-737b8518c629" message="+++Batch Error status  +++" />
+				<set-variable value="#[payload.CDUIDHeader[0]]" doc:name="external_id" doc:id="138dd314-ab9e-42a1-b813-7ff2ac447330" variableName="external_id" />
+				<set-variable value="payload.CDOrderNumber[0]" doc:name="order_id" doc:id="13a8903e-b48c-444e-aab6-7bb750498da9" variableName="order_id" />
+				<ee:transform doc:name="Error with 'E' response" doc:id="b15748ba-5d13-412d-b6cd-3eff25d8d97b" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+import * from dw::Runtime
+output application/json
+var vErrorsA3= payload filter  ($.RecordProcessed == 'E') or (($.HoldCode == 'A3') and ($.MessageResponse == 'HLD'))
+---
+{
+    "latest_message_identifier": vars.messageIdentifier,
+    "referenced_message_id": vErrorsA3[0].SequenceNumber,
+    "external_id":if (isEmpty(vErrorsA3[0].CDUIDHeader)) fail ("ERROR : Mandatory Field: 'Order Id' cannot be empty.")
+              else (vErrorsA3[0].CDUIDHeader),
+       
+ "errors": vErrorsA3 map {
+ "code": $.MessageResponse default "",
+ "detail": "The Batch process is failed due to " ++ $.MessageResponseDesc ++ " and " ++ "Order Line Number:" ++ $.OrderLineNo  ,
+ ("source": {
+         "pointer" : "order_items: " ++ $.CDUIDDetail ++ " and "++ "ticket_id:" ++ $.CDUIDTicket
+          })
+} distinctBy $.code
+
+}]]></ee:set-payload>
+					</ee:message>
+					<ee:variables >
+						<ee:set-variable variableName="Code" ><![CDATA[payload.MessageResponse]]></ee:set-variable>
+					</ee:variables>
+				</ee:transform>
+				<logger level="INFO" doc:name="Logger" doc:id="1bef946d-41ec-4474-8caa-de5be6d9e038" message="#[payload]" />
+				<logger level="INFO" doc:name="Logger" doc:id="24387609-758a-4679-af19-23326ed0d567" message="+++Batch Error status sent for processing to api-5+++ external_id - #[vars.external_id]" />
+				<flow-ref doc:name="Request Flow" doc:id="10419316-74b9-466b-acc3-dd147cbf08d8" name="RequestFlow" />
+				<logger level="INFO" doc:name="Logger" doc:id="6a38d85c-0b29-4817-9319-e2394e0e4539" message="+++ Batch error report Data successfully submitted to API-5 :: request_id - #[vars.request_id],External_id - #[vars.external_id] successfully submitted ++++++" />
+			</when>
+			<otherwise >
+				<logger level="INFO" doc:name="" doc:id="92964866-778d-43ef-af07-29aeccf5adc2" message='"+++No Batch error status found+++"' />
+				<set-variable value="#[payload.CDUIDHeader[0]]" doc:name="external_id" doc:id="dd9466cd-7df7-4d7c-9785-c48b0529e943" variableName="external_id" />
+				<set-variable value="payload.CDOrderNumber[0]" doc:name="order_id" doc:id="e90a0668-d091-41af-ac12-6532e262f7b2" variableName="order_id" />
+				<ee:transform doc:name="No Batch errorstatus found" doc:id="050a2176-920f-4389-be68-8d6cad590105" >
+					<ee:message >
+						<ee:set-payload ><![CDATA['No Batch errorstatus is found']]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+				<logger level="INFO" doc:name="Logger" doc:id="e313d8ca-0500-45c6-ae0e-4dab4e732b71" message="#[payload]" />
+				<logger level="INFO" doc:name="Logger" doc:id="6246dcd4-4b5f-47fc-8403-6d8b1058d306" message="+++ Batch error report Data with No errors :: request_id - #[vars.request_id],External_id - #[vars.external_id] successfully submitted ++++++" />
+			</otherwise>
+		</choice>
+<!-- 		<choice doc:name="Choice" doc:id="18a64532-f92a-4cdb-85b2-b9df84ea92ee" > -->
+<!-- 			<when expression='#[sizeOf(payload) &gt;=2]'> -->
+<!-- 				<choice doc:name="Choice" doc:id="8cd9431a-3855-4a3e-91ea-274ad790e006"> -->
+<!-- 			<when expression="#[(payload.RecordProcessed contains 'Y') or (payload.RecordProcessed contains 'E') or  --><!-- &#10;((payload.HoldCode contains ('A3')) and --><!-- &#10;(payload.MessageResponse contains (&quot;HLD&quot;)))]"> -->
+<!-- 				<logger level="INFO" doc:name="E1 to CD for RecordProcessed 'E' and MessageResponse BOM,CAN,LOC,MAR,HEQ,MOQ,BNF and HLD" doc:id="8209efef-ac09-436f-b9a9-3f7996a0a662" message="+++Batch Error status  +++" /> -->
+<!-- 				<set-variable value="#[payload.CDUIDHeader[0]]" doc:name="external_id" doc:id="d57ba339-3470-488d-811f-04bab7c64507" variableName="external_id" /> -->
+<!-- 				<set-variable value="payload.CDOrderNumber[0]" doc:name="order_id" doc:id="557f502d-b6c7-4be4-bcb7-1cde8a5a9ba2" variableName="order_id"/> -->
+<!-- 						<ee:transform doc:name="Error with 'E' response" doc:id="5907d81d-1de0-43a3-913a-6418576ae8f4"> -->
+<!-- 					<ee:message> -->
+<!-- 						<ee:set-payload><![CDATA[%dw 2.0 -->
+<!-- import * from dw::Runtime -->
+<!-- output application/json -->
+<!-- var vErrorsA3= payload filter  ($.RecordProcessed == 'E') or (($.HoldCode == 'A3') and ($.MessageResponse == 'HLD')) -->
+<!-- -&#45;&#45; -->
+<!-- { -->
+<!--     "latest_message_identifier": vars.messageIdentifier, -->
+<!--     "referenced_message_id": vErrorsA3[0].SequenceNumber, -->
+<!--     "external_id":if (isEmpty(vErrorsA3[0].CDUIDHeader)) fail ("ERROR : Mandatory Field: 'Order Id' cannot be empty.") -->
+<!--               else (vErrorsA3[0].CDUIDHeader), -->
+       
+<!--  "errors": vErrorsA3 map { -->
+<!--  "code": $.MessageResponse default "", -->
+<!--  "detail": "The Batch process is failed due to " ++ $.MessageResponseDesc ++ " and " ++ "Order Line Number:" ++ $.OrderLineNo  , -->
+<!--  ("source": { -->
+<!--          "pointer" : "order_items: " ++ $.CDUIDDetail ++ " and "++ "ticket_id:" ++ $.CDUIDTicket -->
+<!--           }) -->
+<!-- } distinctBy $.code -->
+
+<!-- }]]></ee:set-payload> -->
+<!-- 					</ee:message> -->
+<!-- 					<ee:variables> -->
+<!-- 						<ee:set-variable variableName="Code"><![CDATA[payload.MessageResponse]]></ee:set-variable> -->
+<!-- 					</ee:variables> -->
+<!-- 				</ee:transform> -->
+<!-- 				<logger level="INFO" doc:name="Logger" doc:id="178adc7f-681b-44ed-a149-21ecaa9cf044" message="#[payload]" /> -->
+<!-- 				<logger level="INFO" doc:name="Logger" doc:id="c156c3d5-551b-406d-95f8-fef3116e9e93" message="+++Batch Error status sent for processing to api-5+++ external_id - #[vars.external_id]" /> -->
+<!-- 				<flow-ref doc:name="Request Flow" doc:id="f926413f-be06-4bf3-a4a7-e6ed53e78c22" name="RequestFlow" /> -->
+<!-- 				<logger level="INFO" doc:name="Logger" doc:id="13d1d2f5-bffd-4db0-8816-084c447e264a" message="+++ Batch error report Data successfully submitted to API-5 :: request_id - #[vars.request_id],External_id - #[vars.external_id] successfully submitted ++++++" /> -->
+<!-- 			</when> -->
+<!-- 			<otherwise> -->
+<!-- 				<logger level="INFO" doc:name="" doc:id="f574b6e5-8a11-4a49-9cce-06bb66d23b39" message='"+++No Batch error status found+++"' /> -->
+<!-- 				<ee:transform doc:name="No Batch errorstatus found" doc:id="a44eb760-a51f-45f3-885a-078f275c5c9b"> -->
+<!-- 					<ee:message> -->
+<!-- 						<ee:set-payload><![CDATA['No Batch errorstatus is found']]></ee:set-payload> -->
+<!-- 					</ee:message> -->
+<!-- 				</ee:transform> -->
+<!-- 				<logger level="INFO" doc:name="Logger" doc:id="ea52900e-34f0-4241-8def-73194dbecaa9" message="#[payload]" /> -->
+
+<!-- 			</otherwise> -->
+		
+<!-- </choice> -->
+<!-- 			</when> -->
+<!-- 			<otherwise > -->
+<!-- 				<choice doc:name="Choice" doc:id="717bc1ab-b7ab-4055-9065-185ba99c8646" > -->
+<!-- 					<when expression="#[(payload.RecordProcessed contains'E') or  --><!-- &#10;((payload.HoldCode contains ('A3')) and --><!-- &#10;(payload.MessageResponse contains (&quot;HLD&quot;)))]" > -->
+<!-- 						<logger level="INFO" doc:name="E1 to CD for RecordProcessed 'E' and MessageResponse BOM,CAN,LOC,MAR,HEQ,MOQ,BNF and HLD" doc:id="16917cfd-df4c-49bc-a01b-536880bfdec0" message="+++Batch Error status  +++" /> -->
+<!-- 						<set-variable value="#[payload.CDUIDHeader[0]]" doc:name="external_id" doc:id="2349497d-4d49-45ef-83f5-fd9e432b3206" variableName="external_id" /> -->
+<!-- 						<set-variable value="#[payload.CDOrderNumber[0]]" doc:name="Set Variable" doc:id="efa8ab35-faec-44ae-a63c-283169073db6" variableName="order_id"/> -->
+<!-- 						<ee:transform doc:name="Error with 'E' response" doc:id="d5907fab-fc79-4767-9d8a-a1bb313f1418" > -->
+<!-- 							<ee:message > -->
+<!-- 								<ee:set-payload ><![CDATA[%dw 2.0 -->
+<!-- import * from dw::Runtime -->
+<!-- output application/json -->
+<!-- var vErrorsA3= payload filter  ($.RecordProcessed == 'E') or (($.HoldCode == 'A3') and ($.MessageResponse == 'HLD')) -->
+<!-- -&#45;&#45; -->
+<!-- { -->
+<!--     "latest_message_identifier": vars.messageIdentifier, -->
+<!--     "referenced_message_id": vErrorsA3.SequenceNumber[0], -->
+<!--     "external_id":if (isEmpty(vErrorsA3.CDUIDHeader[0])) fail ("ERROR : Mandatory Field: 'Order Id' cannot be empty.") -->
+<!--               else (vErrorsA3.CDUIDHeader[0]), -->
+       
+<!--  "errors": vErrorsA3 map { -->
+<!--  "code": $.MessageResponse default "", -->
+<!--  "detail": "The Batch process is failed due to " ++ $.MessageResponseDesc ++ " and " ++ "Order Line Number:" ++ $.OrderLineNo  , -->
+<!--  ("source": { -->
+<!--          "pointer" : "order_items: " ++ $.CDUIDDetail ++ " and "++ "ticket_id:" ++ $.CDUIDTicket -->
+<!--           }) -->
+<!-- } -->
+
+<!-- }]]></ee:set-payload> -->
+<!-- 							</ee:message> -->
+<!-- 							<ee:variables > -->
+<!-- 								<ee:set-variable variableName="Code" ><![CDATA[payload.MessageResponse[0]]]></ee:set-variable> -->
+<!-- 							</ee:variables> -->
+<!-- 						</ee:transform> -->
+<!-- 						<logger level="INFO" doc:name="Logger" doc:id="b5b1f4cd-d1d3-4258-bf8b-02497d2b3575" message="#[payload]" /> -->
+<!-- 						<logger level="INFO" doc:name="Logger" doc:id="64ae0c45-f9f2-4785-bdad-32c53bcc4637" message="+++Batch Error status sent for processing to api-5+++ external_id - #[vars.external_id]" /> -->
+<!-- 						<flow-ref doc:name="Request Flow" doc:id="4e4f06a3-b37a-4084-943b-c45b1b5afda8" name="RequestFlow" /> -->
+<!-- 						<logger level="INFO" doc:name="Logger" doc:id="1fca534a-8993-42d2-9f05-512d274b8286" message="+++ Batch error report Data successfully submitted to API-5 :: request_id - #[vars.request_id],External_id - #[vars.external_id] successfully submitted ++++++" /> -->
+<!-- 					</when> -->
+<!-- 					<otherwise > -->
+<!-- 						<logger level="INFO" doc:name="Logger" doc:id="c3b3b130-8b73-4d6d-bc56-9e527c6d9826" message='"+++No Batch error status found+++"' /> -->
+<!-- 						<ee:transform doc:name="No Batch errorstatus found" doc:id="77ad56cb-d0d1-4441-a5a8-e68a07a4ec7f" > -->
+<!-- 							<ee:message > -->
+<!-- 								<ee:set-payload ><![CDATA['No Batch errorstatus is found']]></ee:set-payload> -->
+<!-- 							</ee:message> -->
+<!-- 						</ee:transform> -->
+<!-- 						<logger level="INFO" doc:name="Logger" doc:id="f9a1ad32-8673-4bdc-b242-e6241381185a" message="#[payload]" /> -->
+<!-- 					</otherwise> -->
+<!-- 				</choice> -->
+<!-- 			</otherwise> -->
+<!-- 		</choice> -->
+	</flow>
+</mule>

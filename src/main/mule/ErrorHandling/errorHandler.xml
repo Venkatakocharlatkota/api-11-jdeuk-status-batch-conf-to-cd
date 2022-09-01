@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:cloudhub="http://www.mulesoft.org/schema/mule/cloudhub"
+	xmlns:sqs="http://www.mulesoft.org/schema/mule/sqs" xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/sqs http://www.mulesoft.org/schema/mule/sqs/current/mule-sqs.xsd
+http://www.mulesoft.org/schema/mule/cloudhub http://www.mulesoft.org/schema/mule/cloudhub/current/mule-cloudhub.xsd">
+	<flow name="errorHandlerFlow" doc:id="18ef58fe-36e5-4640-a124-9012b7c76d13" >
+	<logger level="INFO" doc:name="Logger" doc:id="23f6b302-702a-41fc-b928-35025ccbbdaf" message="++++Inside the CommonError handler Flow for Error Handling +++ " />
+				<try doc:name="Try" doc:id="28666ef2-99c5-4d29-bf18-57b18e923bca" >
+					<ee:transform doc:name="Transform Message" doc:id="3f93a726-6bea-4d2f-9598-93b389b28227" >
+						<ee:message >
+							<ee:set-payload ><![CDATA[%dw 2.0
+output application/json skipNullOn = "everywhere"
+---
+vars.cdPayload ++ {"client_id": Mule::p('secure::client_id')} ++ {"sourceSys": p('sourceSystem')} ++ {"buisObj": vars.buisObj} ++ {"msgIdentifier": vars.messageIdentifier} ++ {"systemIdentifier": p('systemIdentifier')} ++ {"request_id": vars.request_id}]]></ee:set-payload>
+						</ee:message>
+					</ee:transform>
+					<logger level="INFO" doc:name="Logger" doc:id="7b991566-40fd-47f2-ab29-ed233475b831" message="+++ Error Payload with Headers for further processing ------------------- #[payload]" />
+					<ee:transform doc:name="Transform Message" doc:id="98926321-2a51-4c9e-b513-63612f7abdbe" >
+						<ee:message >
+							<ee:set-payload ><![CDATA[%dw 2.0
+output application/java
+---
+{
+	delaySeconds: 0,
+	body: write(payload, "application/json"),
+	messageAttributes: {
+		"AccountId": {
+			"stringValue" : "000123456",
+			"dataType" : "String.AccountId"
+		} as Object {
+			class: "org.mule.extension.sqs.api.model.MessageAttributeValue"
+		},
+		"NumberId": {
+			"stringValue" : "230.000000000000000001",
+			"dataType" : "Number"
+		} as Object {
+			class : "org.mule.extension.sqs.api.model.MessageAttributeValue"
+		}
+	} as Object {
+		class: "java.util.HashMap"
+	}
+} as Object {
+	class: "org.mule.extension.sqs.api.model.Message"
+}]]></ee:set-payload>
+						</ee:message>
+					</ee:transform>
+					<logger level="INFO" doc:name="Logger" doc:id="f4d8f85b-7fd8-40d4-852f-1e7ed39efc79" message="+++Header Details ::: Source System - #[Mule::p('secure::client_id')] , System Identifier - #[p('systemIdentifier')] ,  Buisness Object - #[vars.buisObj] , Message Identifier - #[vars.messageIdentifier] , Request ID - #[vars.request_id] +++" />
+					<until-successful maxRetries="5" doc:name="Until Successful" doc:id="5f01d451-bf38-4ead-95fb-c41e3eea914d" millisBetweenRetries="30000" >
+				<sqs:send-message doc:name="Send message" doc:id="2d24a9eb-7241-4a97-888f-4cdf033b581d" config-ref="Amazon_SQS_Configuration" queueUrl="${secure::SQSQueueURL}"/>
+					
+</until-successful>
+					<logger level="INFO" doc:name="Logger" doc:id="12f31369-44f9-4ee5-a83f-c55cdea2b344" message="+++Error Message written into SQS successfully +++" />
+				
+</try>
+		<logger level="INFO" doc:name="Logger" doc:id="76d5422a-a15e-424b-9a57-d5cca8aec7b8" message="+++ #[payload] +++" />
+	</flow>
+</mule>

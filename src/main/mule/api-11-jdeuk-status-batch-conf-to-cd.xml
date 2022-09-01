@@ -6,7 +6,7 @@ http://www.mulesoft.org/schema/mule/os http://www.mulesoft.org/schema/mule/os/cu
 http://www.mulesoft.org/schema/mule/spring http://www.mulesoft.org/schema/mule/spring/current/mule-spring.xsd
 http://www.mulesoft.org/schema/mule/tls http://www.mulesoft.org/schema/mule/tls/current/mule-tls.xsd">
    
-	<flow name="api-11-jdeuk-status-batch-comp-to-cd-main">
+	<flow name="api-11-jdeuk-status-batch-conf-to-cd-main">
         <http:listener path="/api/*" config-ref="api-11_HTTP_Listener_config">
             <http:response statusCode="#[vars.httpStatus default 200]">
                 <http:headers><![CDATA[#[vars.outboundHeaders default {}]]]></http:headers>
@@ -167,17 +167,16 @@ output application/json
     <flow name="put:\batchconfirmation:api-11-jdeuk-status-batch-conf-to-cd-config">
 		<logger level="INFO" message="+++Batch Confirmation data is received from JDE[E1] for further processing+++" />
 		<flow-ref doc:name="Flow Reference" doc:id="aed2bdc3-469f-4a8e-bf52-df8321d4c564" name="jdeuk-batch-conf-to-cd"/>
-    </flow>
-    <flow name="put:\errorstatus:api-11-jdeuk-status-batch-conf-to-cd-config" doc:id="7fa2012e-ecd6-449e-923b-dfc4a9560ca8">
-        <logger level="INFO" message="+++Error Status received data Received from JDE[E1] for further processing+++" />
-		<flow-ref doc:name="Flow Reference" doc:id="9a14f963-206c-4134-9db3-4d2eb9733406" name="Ordererrorreport" />
+		<error-handler ref="common-error-handler" />
     </flow>
    <flow name="put:\orderstatus:api-11-jdeuk-status-batch-conf-to-cd-config" doc:id="74f195b2-f12c-4294-a310-55a778a26198">
         <logger level="INFO" message="+++Order Status received data Received from JDE[E1] for further processing+++" />
 		<flow-ref doc:name="Flow Reference" doc:id="4f97fe73-185a-46a7-926b-b561d2e7d57b" name="Ordererrorreport" />
+		<error-handler ref="common-error-handler" />
     </flow>
 	<flow name="put:\batcherrorstatus:api-11-jdeuk-status-batch-conf-to-cd-config" doc:id="73c3c70c-b5d6-42cc-9f67-c261a2140c07" >
 		<logger level="INFO" doc:name="Logger" doc:id="e0a033b3-62f6-4703-a192-3969fd134138" message="+++Batch Status received data Received from JDE[E1] for further processing+++" />
-		<flow-ref doc:name="Flow Reference" doc:id="9425b6d5-5109-41c8-8163-749456a36ae2" name="Batcherrorreport" />
+		<flow-ref doc:name="Flow Reference" doc:id="9425b6d5-5109-41c8-8163-749456a36ae2" name="Batchstatuserrorpoint" />
+		<error-handler ref="common-error-handler" />
 	</flow>
 </mule>

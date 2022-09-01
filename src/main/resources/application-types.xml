@@ -4,4 +4,12 @@
   <types:enrichment select="#b54b74cd-061d-4a01-bd62-aa15039345ab"/>
   <types:enrichment select="#8a5f61c1-2c25-443d-b195-8e658e44ea9d"/>
   <types:enrichment select="#d5281fa6-f624-4a93-85f7-48b75f9772ce"/>
+  <types:enrichment select="#628fb98a-79da-4e1b-8043-a66e538eff6a"/>
+  <types:enrichment select="#6db745d8-abc8-406a-af2d-303b98c68395"/>
+  <types:enrichment select="#c76d3fc5-6676-4df3-820a-fa105612dd45"/>
+  <types:enrichment select="#41db3916-1b4e-462b-bd33-cfbaa45f74f8"/>
+  <types:enrichment select="#5907d81d-1de0-43a3-913a-6418576ae8f4"/>
+  <types:enrichment select="#aea16259-1507-4a33-ae30-d3979ba30ce1"/>
+  <types:enrichment select="#bdc9f4a3-59a4-45ce-812a-b0102e0bfae7"/>
+  <types:enrichment select="#c52c9cf8-a875-4e63-86d7-299acd63cd07"/>
 </types:mule>

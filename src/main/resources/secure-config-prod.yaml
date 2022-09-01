@@ -1,27 +1,22 @@
-api5.host : api-5-common-cd-order-ticket-stg-gateway.ir-e1.cloudhub.io
+api5.host : api-5-common-cd-order-ticket-gateway.ir-e1.cloudhub.io
 request.path : orderPayload
+
 api5.truststore.path : keystore/Holcim-Mule-prd-trustStore.ts
-api5.truststore.pwd : "![41AQoq8kGa/EFH7iUIs8WA==]"
+api5.truststore.pwd : "![Wqu2Uos08gljKJ5xuMtzbg==]"
 api5.muleuser : holcimmuleuser
-api5.mulepassword : "![fA0kNC75zv1VUGGQb7h3Bg==]"
-client_id : "![QxPVYZEjyOPqWnroich5bTMPNEHTasX3tRPO+qSyg/JZY+r7Wzmc/QC/8NsJxBWf]"
+api5.mulepassword : "![42J8DLYgLKdGlsCAImHViWbcbS9s3i2xuAyJEl7Xs8TtBRn8vOAX/8ffyH+x+ADc]"
+client_id : 8ofIKjQaJsZbJy0OFAf4FQNdDGLDYrTE
+
 api11.ss.user: uke1muleuser
-api11.ss.pwd: "![1qBoBuQTWMwmgVYG+SA6C3SMiBzPsQPrL9837FnoasMSGdwnsP/kOUmVvY9H+pFo]"
- 
- 
-jde.user: "SVC_MODUS"
-jde.password: "<>)izZ2ypR"
-jde.environment: "JPY900"
-jde.role: "*ALL"
+api11.ss.pwd: "![OHumNmVpE00ogX33vQv3TqFM9B69xTNLwZYIiG/tHddEzCG3RLFt2nGz0ufWEWP/]"
  
                   
 SQSTestQueueARN: "arn:aws:sqs:eu-west-1:944927062928:cd-mulesoft-pd-error"
 SQSAccessKey: "AKIA5YAQKXOIKCQPIFZJ"
-SQSSecretKey: "![/QmghZ0bSoDfQAMKnMaWsetxCcwGVZ1PagY6L4WVnY10VYdu4XizH59grpIl3R0u]"
+SQSSecretKey: "![5IcMgJfLwtiTD1nqK10X+mZcI3YcOSVIKYYEgt7Spw+Anm9jb5f7DXuj9P+5ZI/h]"
 SQSQueueURL:  "https://sqs.eu-west-1.amazonaws.com/944927062928/cd-mulesoft-pd-error"
 
 cloudhub.username: "Concrete-Direct-CICD"
-cloudhub.pwd: "![x6b24q5Vqn4Hi3K71ut9uxmkOU5d0z31m9pKEWEAkWU=]"
-cloudhub.env: "079bf903-a498-456a-bfe5-b883ecd012c4"
-cloudhub.domain: "api-11-jdeuk-status-batch-comp-to-cd"
-                  
+cloudhub.pwd: "![EK581WBxk6xF0hg0hM6P2X63E7NAMJv0ljrrFcyb52M=]"
+cloudhub.env: "![NJ/PqLo4LEOtqJtYv99vSmyfvTYf8cPwYqA59ywNop2m5Oez1UjFrC98bwe7k2D0]"
+cloudhub.domain: "api-11-jdeuk-status-batch-conf-to-cd"
